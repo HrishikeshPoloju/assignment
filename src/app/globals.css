@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+:root {
+  /* MANDATORY (animate-to-intrinsic-sizes): Opt-in globally for intrinsic keyword transitions */
+  interpolate-size: allow-keywords;
+
+  /* AquaShine Brand Design Tokens */
+  --bg-main: #F8FAF9;
+  --surface-white: #FFFFFF;
+  --color-primary-teal: #123B46;
+  --color-primary-teal-hover: #0D2C35;
+  --color-aqua-accent: #25AFA5;
+  --color-aqua-dark: #197A73;
+  --color-pale-sage: #E6F2EE;
+  --text-main: #172A30;
+  --text-secondary: #5D6B70;
+  --border-subtle: #E3EAE7;
+  --color-error: #C5221F;
+  --color-error-bg: #FCE8E6;
+  --color-success: #188038;
+}
+
+html {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  text-align: start;
+  /* MANDATORY (brand-consistent-forms): High-contrast deep teal accent color for checkboxes/radios/sliders */
+  accent-color: var(--color-primary-teal);
+  overflow-x: hidden;
+}
+
+/* MANDATORY (improve-text-layout-and-legibility):
+   Apply text-wrap: balance specifically to short heading elements without visible box borders/backgrounds */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+}
+
+/* MANDATORY (improve-text-layout-and-legibility):
+   Apply text-wrap: pretty to multi-line body copy to prevent orphaned words ("runts") */
+p,
+li,
+blockquote,
+.pretty-text {
+  text-wrap: pretty;
+}
+
+/* MANDATORY (accessibility):
+   Canonical visually-hidden utility with :focus-within/:active opt-out for skip links */
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+.skip-link:where(:focus, :focus-within, :active) {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 100;
+  background-color: var(--color-primary-teal);
+  color: #FFFFFF;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 10px 25px -5px rgba(18, 59, 70, 0.25);
+  outline: 3px solid var(--color-aqua-accent);
+  outline-offset: 2px;
+}
+
+/* MANDATORY (accessibility & css):
+   Explicit high-contrast focus-visible indicators */
+:where(a:any-link, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--color-aqua-accent);
+  outline-offset: 3px;
+}
+
+/* MANDATORY (defer-rendering-heavy-content):
+   Defer rendering strictly for below-the-fold sections paired with contain-intrinsic-size */
+.defer-below-fold {
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 520px;
+}
+
+/* MANDATORY (animate-to-intrinsic-sizes):
+   Accordion and disclosure animations to intrinsic block-size: auto */
+.disclosure-item::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition: block-size 0.3s ease-out, content-visibility 0.3s ease-out allow-discrete;
+}
+
+.disclosure-item[open]::details-content {
+  block-size: auto;
+}
+
+/* MANDATORY (required-field-feedback, validate-input-after-interaction, accessible-error-announcement):
+   Style invalid fields only after user interaction via :user-invalid and .user-invalid-fallback */
+:where(input, select, textarea):where(:user-invalid, .user-invalid-fallback) {
+  border-color: var(--color-error) !important;
+  background-color: var(--color-error-bg) !important;
+}
+
+:where(input, select, textarea):required:where(:user-valid, .user-valid-fallback) {
+  border-color: var(--color-aqua-dark);
+}
+
+/* MANDATORY (brand-consistent-forms):
+   Progressive enhancement fallback when accent-color is not supported */
+@supports not (accent-color: #123B46) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    border: 2px solid var(--color-primary-teal);
+  }
+}
+
+/* Ensure comfortable 48px+ tap targets on coarse pointers (forms guide) */
+@media (pointer: coarse) {
+  :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, button.touch-target) {
+    min-height: 50px;
+  }
+}
+
+/* MANDATORY (mobile UX & iOS Safari zoom prevention):
+   Inputs must be at least 16px font-size on mobile so iOS Safari never triggers auto-zoom on focus */
+@media (max-width: 640px) {
+  :where(input, select, textarea) {
+    font-size: 16px !important;
+  }
+}
+
+/* MANDATORY (accessibility & animate-to-intrinsic-sizes):
+   Respect user reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .disclosure-item::details-content,
+  .motion-safe-transition {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Horizontal scroll styling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
