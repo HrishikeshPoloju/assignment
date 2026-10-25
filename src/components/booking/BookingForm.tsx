@@ -857,12 +857,12 @@ export function BookingForm() {
                 type="button"
                 onClick={handleDetectLocation}
                 disabled={gpsLoading}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#197A73] bg-[#E6F8F0] px-3 py-1.5 text-xs font-bold text-[#197A73] hover:bg-[#D0F2E5] transition-colors disabled:opacity-50"
+                className="relative overflow-hidden inline-flex items-center gap-1.5 rounded-xl border border-[#197A73] bg-[#E6F8F0] px-3.5 py-1.5 text-xs font-bold text-[#197A73] hover:bg-[#D0F2E5] transition-all disabled:opacity-50 animate-gps-pulse shine-effect shadow-xs"
               >
                 {gpsLoading ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Crosshair className="h-3.5 w-3.5" />
+                  <Crosshair className="h-3.5 w-3.5 text-[#197A73]" />
                 )}
                 <span>{gpsLoading ? "Detecting..." : "Auto-Detect My Location"}</span>
               </button>

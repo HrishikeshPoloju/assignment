@@ -75,7 +75,8 @@ export function MobileStickyCTA() {
         >
           <div className="relative">
             <MessageCircle className="h-4 w-4 text-[#25D366] stroke-[2]" />
-            <span className="absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full bg-[#25D366]" />
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#25D366] animate-ping opacity-75" />
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#25D366]" />
           </div>
           <span className="text-[10px] tracking-tight">WhatsApp</span>
         </a>

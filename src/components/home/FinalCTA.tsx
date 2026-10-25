@@ -37,9 +37,9 @@ export function FinalCTA() {
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2.5 rounded-xl border border-white/25 bg-white/10 px-7 py-3.5 text-base font-semibold text-white transition-colors hover:bg-white/20 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#25D366] px-7 py-3.5 text-base font-bold text-white shadow-md hover:bg-[#1EBE5D] transition-all animate-whatsapp-pulse shine-effect sm:w-auto"
             >
-              <MessageSquare aria-hidden="true" className="h-5 w-5 text-[#25AFA5]" />
+              <MessageSquare aria-hidden="true" className="h-5 w-5 fill-white text-white" />
               <span>WhatsApp Booking</span>
             </a>
 

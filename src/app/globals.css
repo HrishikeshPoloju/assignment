@@ -171,4 +171,77 @@ blockquote,
   scrollbar-width: none;
 }
 
+/* ==========================================================================
+   Micro-Interactions: Subtle Shine & Breathing Pulse Effects
+   (Slightly contracts and expands with a passing light-ray shine)
+   ========================================================================== */
+@keyframes shine-sweep {
+  0% {
+    transform: translateX(-150%) skewX(-25deg);
+  }
+  30%, 100% {
+    transform: translateX(250%) skewX(-25deg);
+  }
+}
+
+@keyframes whatsapp-breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 3px 12px 0 rgba(37, 211, 102, 0.35);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 6px 20px 2px rgba(37, 211, 102, 0.55);
+  }
+}
+
+@keyframes gps-breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px 0 rgba(25, 122, 115, 0.15);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 4px 16px 2px rgba(25, 122, 115, 0.32);
+  }
+}
+
+.animate-whatsapp-pulse {
+  animation: whatsapp-breathe 3.5s ease-in-out infinite;
+}
+
+.animate-gps-pulse {
+  animation: gps-breathe 3s ease-in-out infinite;
+}
+
+.shine-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine-effect::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: shine-sweep 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-whatsapp-pulse,
+  .animate-gps-pulse,
+  .shine-effect::after {
+    animation: none !important;
+  }
+}
+
 
