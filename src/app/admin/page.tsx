@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Copy,
   Check,
+  Database,
 } from "lucide-react";
 import { BookingRecord, BusinessSettings } from "@/lib/bookings-store";
 
@@ -30,6 +31,10 @@ export default function AdminBookingsPage() {
     configured: boolean;
     webhookUrlMasked: string | null;
   }>({ configured: false, webhookUrlMasked: null });
+  const [dbInfo, setDbInfo] = useState<{
+    type: string;
+    connected: boolean;
+  }>({ type: "Checking...", connected: false });
 
   const [settingsForm, setSettingsForm] = useState<BusinessSettings>({
     googleSheetWebhookUrl: "",
@@ -65,6 +70,9 @@ export default function AdminBookingsPage() {
         setBookings(data.bookings || []);
         if (data.googleSheets) {
           setGoogleSheetsInfo(data.googleSheets);
+        }
+        if (data.database) {
+          setDbInfo(data.database);
         }
         if (data.settings) {
           setSettingsForm({
@@ -286,6 +294,22 @@ export default function AdminBookingsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <div
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                dbInfo.connected
+                  ? "border-[#188038]/30 bg-[#E6F4EA] text-[#188038]"
+                  : "border-amber-300 bg-amber-50 text-amber-800"
+              }`}
+              title={
+                dbInfo.connected
+                  ? "Connected to Neon Serverless Postgres Cloud Database"
+                  : "Using local JSON storage fallback. Set DATABASE_URL to connect Neon DB."
+              }
+            >
+              <Database className="h-3.5 w-3.5 shrink-0" />
+              <span>{dbInfo.connected ? "Neon DB Connected" : "Local File Storage"}</span>
+            </div>
+
             <button
               onClick={() => {
                 setSettingsFeedback(null);
@@ -887,8 +911,21 @@ export default function AdminBookingsPage() {
               </div>
             </form>
 
-            {/* Quick 4-step instructions */}
+            {/* Neon DB Info */}
             <div className="mt-6 rounded-2xl border border-[#E3EAE7] bg-[#F8FAF9] p-4 text-xs leading-relaxed text-[#172A30]">
+              <div className="flex items-center gap-2 font-bold text-[#123B46]">
+                <Database className="h-4 w-4 text-[#197A73]" />
+                <span>Neon Serverless Postgres Status: {dbInfo.connected ? "Connected ✅" : "Local Fallback Mode"}</span>
+              </div>
+              <p className="mt-1 text-[#5D6B70]">
+                {dbInfo.connected
+                  ? "All customer enquiries, booking records, and admin statuses are securely and permanently saved in your Neon Postgres cloud database."
+                  : "To enable persistent cloud storage, create a free project at neon.tech and add your connection string as DATABASE_URL in your environment variables (in .env.local locally, or in Vercel project settings)."}
+              </p>
+            </div>
+
+            {/* Quick 4-step instructions */}
+            <div className="mt-4 rounded-2xl border border-[#E3EAE7] bg-[#F8FAF9] p-4 text-xs leading-relaxed text-[#172A30]">
               <p className="font-bold text-[#123B46]">
                 2-Minute Google Sheet Setup Steps:
               </p>

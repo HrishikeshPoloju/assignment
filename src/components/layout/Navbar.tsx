@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarCheck, Menu, X, ArrowRight } from "lucide-react";
+import { CalendarCheck, Menu, X, ArrowRight, Phone } from "lucide-react";
 import { Logo } from "./Logo";
 import { siteConfig } from "@/data/site-config";
 
@@ -114,8 +114,16 @@ export function Navbar() {
           </ul>
         </nav>
 
-        {/* Desktop CTA */}
+        {/* Desktop CTA & Direct Call */}
         <div className="hidden md:flex md:items-center md:gap-3">
+          <a
+            href="tel:+917995770546"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#D0DDD8] bg-white px-3.5 py-2 text-xs font-bold text-[#123B46] hover:bg-[#E6F2EE] transition-colors"
+          >
+            <Phone className="h-3.5 w-3.5 text-[#197A73]" />
+            <span>+91 79957 70546</span>
+          </a>
+
           <Link
             href="/contact#booking-form"
             className="inline-flex items-center gap-2 rounded-xl bg-[#123B46] px-5 py-2.5 text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-[#0D2C35]"

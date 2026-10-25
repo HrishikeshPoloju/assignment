@@ -2,6 +2,13 @@ import fs from "fs/promises";
 import path from "path";
 import { getServiceBySlug, getCategoryById } from "@/data/services";
 import { siteConfig } from "@/data/site-config";
+import {
+  getBookingsFromNeon,
+  insertBookingToNeon,
+  updateBookingInNeon,
+  getBusinessSettingsFromNeon,
+  saveBusinessSettingsToNeon,
+} from "./db";
 
 export interface BookingRecord {
   id: string;
@@ -60,6 +67,12 @@ async function ensureDataFile(): Promise<void> {
 }
 
 export async function getBusinessSettings(): Promise<BusinessSettings> {
+  // First attempt from Neon DB
+  const neonSettings = await getBusinessSettingsFromNeon();
+  if (neonSettings) {
+    return neonSettings;
+  }
+
   const defaults: BusinessSettings = {
     googleSheetWebhookUrl: process.env.GOOGLE_SHEET_WEBHOOK_URL || "",
     whatsappNumber:
@@ -96,7 +109,6 @@ export async function getBusinessSettings(): Promise<BusinessSettings> {
 export async function saveBusinessSettings(
   input: Partial<BusinessSettings>
 ): Promise<BusinessSettings> {
-  await ensureDataDir();
   const current = await getBusinessSettings();
   const next: BusinessSettings = {
     googleSheetWebhookUrl:
@@ -116,11 +128,28 @@ export async function saveBusinessSettings(
     updatedAt: new Date().toISOString(),
   };
 
-  await fs.writeFile(SETTINGS_FILE_PATH, JSON.stringify(next, null, 2), "utf8");
+  // Save to Neon DB if connected
+  await saveBusinessSettingsToNeon(next);
+
+  // Save to local file backup
+  try {
+    await ensureDataDir();
+    await fs.writeFile(SETTINGS_FILE_PATH, JSON.stringify(next, null, 2), "utf8");
+  } catch (err) {
+    console.error("Local settings write error:", err);
+  }
+
   return next;
 }
 
 export async function getAllBookings(): Promise<BookingRecord[]> {
+  // If Neon DB is configured, read directly from Postgres
+  const neonBookings = await getBookingsFromNeon();
+  if (neonBookings !== null) {
+    return neonBookings;
+  }
+
+  // Fallback to local JSON file
   try {
     await ensureDataFile();
     const content = await fs.readFile(DATA_FILE_PATH, "utf8");
@@ -139,24 +168,31 @@ export async function updateBookingRecord(
     adminNotes?: string;
   }
 ): Promise<BookingRecord | null> {
+  // Update in Neon DB
+  await updateBookingInNeon(id, updates);
+
+  // Update in local file backup
   try {
-    const bookings = await getAllBookings();
+    await ensureDataFile();
+    const content = await fs.readFile(DATA_FILE_PATH, "utf8");
+    const bookings: BookingRecord[] = JSON.parse(content || "[]");
     const index = bookings.findIndex((b) => b.id === id || b.enquiryRef === id);
-    if (index === -1) return null;
-
-    if (updates.status) {
-      bookings[index].status = updates.status;
+    if (index !== -1) {
+      if (updates.status) {
+        bookings[index].status = updates.status;
+      }
+      if (typeof updates.adminNotes === "string") {
+        bookings[index].adminNotes = updates.adminNotes;
+      }
+      await fs.writeFile(DATA_FILE_PATH, JSON.stringify(bookings, null, 2), "utf8");
+      return bookings[index];
     }
-    if (typeof updates.adminNotes === "string") {
-      bookings[index].adminNotes = updates.adminNotes;
-    }
-
-    await fs.writeFile(DATA_FILE_PATH, JSON.stringify(bookings, null, 2), "utf8");
-    return bookings[index];
   } catch (err) {
-    console.error("Error updating booking record:", err);
-    return null;
+    console.error("Error updating local bookings file:", err);
   }
+
+  const all = await getAllBookings();
+  return all.find((b) => b.id === id || b.enquiryRef === id) || null;
 }
 
 export async function updateBookingStatus(
@@ -246,9 +282,24 @@ export async function syncBookingByIdToGoogleSheet(
   }
 
   const result = await sendToGoogleSheetWebhook(bookings[index]);
-  bookings[index].syncedToGoogleSheets = result.success;
-  bookings[index].googleSheetError = result.error;
-  await fs.writeFile(DATA_FILE_PATH, JSON.stringify(bookings, null, 2), "utf8");
+  const isSuccess = result.success;
+  const errorMsg = result.error;
+
+  // Update in Neon
+  await updateBookingInNeon(id, {
+    syncedToGoogleSheets: isSuccess,
+    googleSheetError: errorMsg,
+  });
+
+  // Update in local file
+  try {
+    bookings[index].syncedToGoogleSheets = isSuccess;
+    bookings[index].googleSheetError = errorMsg;
+    await fs.writeFile(DATA_FILE_PATH, JSON.stringify(bookings, null, 2), "utf8");
+  } catch (err) {
+    console.error("Local sync write error:", err);
+  }
+
   return result;
 }
 
@@ -270,8 +321,6 @@ export async function saveBooking(input: {
   preferredTimeWindow?: string;
   addressAndInstructions?: string;
 }): Promise<BookingRecord> {
-  await ensureDataFile();
-
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -347,11 +396,18 @@ export async function saveBooking(input: {
     record.googleSheetError = googleResult.error;
   }
 
-  // Save to local file
+  // 1. Save to Neon Serverless Postgres (Persistent Cloud DB)
+  await insertBookingToNeon(record);
+
+  // 2. Save to local JSON file backup
   try {
+    await ensureDataFile();
     const existing = await getAllBookings();
-    existing.unshift(record); // newest first
-    await fs.writeFile(DATA_FILE_PATH, JSON.stringify(existing, null, 2), "utf8");
+    // Only push if not already in array from Neon fetch
+    if (!existing.some((b) => b.id === record.id)) {
+      existing.unshift(record);
+      await fs.writeFile(DATA_FILE_PATH, JSON.stringify(existing, null, 2), "utf8");
+    }
   } catch (err) {
     console.error("Error saving booking locally:", err);
   }

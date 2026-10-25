@@ -1,16 +1,13 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
   AlertCircle,
-  Send,
   Plus,
   Check,
   X,
-  RotateCcw,
-  Sparkles,
   Calendar,
   Clock,
   MapPin,
@@ -18,18 +15,21 @@ import {
   User,
   MessageSquare,
   ShieldCheck,
-  ChevronRight,
+  ArrowRight,
+  ArrowLeft,
   Crosshair,
   ExternalLink,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import {
+  allCatalogueServices,
   allServices,
-  getRelatedRecommendations,
+  getCategoryById,
   getServiceBySlug,
-  getServicesByCategory,
   serviceCategories,
   formatServicePriceLabel,
+  ServiceItem,
 } from "@/data/services";
 import { siteConfig } from "@/data/site-config";
 import {
@@ -40,7 +40,6 @@ import {
   TimeWindow,
   validateBookingForm,
 } from "@/lib/validation";
-import { BookingSummary } from "./BookingSummary";
 
 const PROPERTY_TYPES: PropertyType[] = [
   "Apartment / Flat",
@@ -48,7 +47,6 @@ const PROPERTY_TYPES: PropertyType[] = [
   "PG / Hostel",
   "Office / Coworking",
   "Restaurant / Café",
-  "Clinic / Gym / Retail",
   "Housing Society",
 ];
 
@@ -59,1242 +57,1017 @@ const TIME_WINDOWS: TimeWindow[] = [
   "Flexible / Discuss on Call",
 ];
 
-function getDefaultDateString(): string {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow.toISOString().slice(0, 10);
+const QUICK_LOCALITIES = [
+  "Viman Nagar",
+  "Kharadi",
+  "Kalyani Nagar",
+  "Wadgaon Sheri",
+  "Koregaon Park",
+  "Magarpatta",
+  "Other Pune Area",
+];
+
+function getTomorrowDateString(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
-function getTodayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+function getDayAfterDateString(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 2);
+  return d.toISOString().slice(0, 10);
 }
 
-// Category icons for visual category pills
-const CATEGORY_ICONS: Record<string, string> = {
-  "water-tank-and-water-care": "💧",
-  "sofa-and-upholstery-care": "🛋️",
-  "bathroom-care": "🚿",
-  "kitchen-care": "🍳",
-  "floor-and-surface-care": "🧹",
-  "window-and-outdoor-care": "🪟",
-  "complete-home-cleaning": "✨",
-  "commercial-cleaning": "🏢",
-};
+export const EXACT_WHATSAPP_URL =
+  "https://wa.me/917995770546?text=Hi%20AquaShine%21%20I%20want%20to%20book%20a%20cleaning%20service.%0AService%3A%20%0AArea%20%2F%20Pincode%3A%20%0APreferred%20date%3A%20%0AProperty%20type%3A%20Home%20%2F%20Society%20%2F%20Office";
 
-// 1-Tap Quick Scope / Size Options per Category so customers can specify size effortlessly
-const CATEGORY_SCOPE_OPTIONS: Record<string, { label: string; options: string[] }> = {
-  "water-tank-and-water-care": {
-    label: "Approximate Tank / System Size (1-Tap Optional):",
-    options: [
-      "500L – 1,000L Tank",
-      "1,000L – 2,000L Tank",
-      "2,000L – 5,000L Tank",
-      "Society / Commercial Tank (>5,000L)",
-      "Not Sure / Need Inspection",
-    ],
-  },
-  "sofa-and-upholstery-care": {
-    label: "Seating / Item Size (1-Tap Optional):",
-    options: [
-      "3-Seater Sofa",
-      "5-Seater / L-Shape Sofa",
-      "7+ Seater Sofa Set",
-      "Single / Queen Mattress",
-      "King Mattress / Multiple Items",
-    ],
-  },
-  "bathroom-care": {
-    label: "Number of Bathrooms (1-Tap Optional):",
-    options: ["1 Bathroom", "2 Bathrooms", "3 Bathrooms", "4+ Bathrooms"],
-  },
-  "kitchen-care": {
-    label: "Kitchen Scope (1-Tap Optional):",
-    options: [
-      "Standard Modular Kitchen",
-      "Large Kitchen + Chimney",
-      "Chimney / Appliance Only",
-      "Commercial / Cloud Kitchen",
-    ],
-  },
-  "floor-and-surface-care": {
-    label: "Approximate Floor Area (1-Tap Optional):",
-    options: [
-      "1 – 2 BHK Floor Area",
-      "3+ BHK / Villa Floor",
-      "Outdoor Porch / Driveway",
-      "Commercial Floor Space",
-    ],
-  },
-  "window-and-outdoor-care": {
-    label: "Window / Balcony Count (1-Tap Optional):",
-    options: [
-      "1 – 2 Balconies / Windows",
-      "Full 2 BHK Windows & Balconies",
-      "Full 3+ BHK Windows & Balconies",
-      "Society / Commercial Glass",
-    ],
-  },
-  "complete-home-cleaning": {
-    label: "Home Size (1-Tap Optional):",
-    options: [
-      "1 RK / Studio",
-      "1 BHK Flat",
-      "2 BHK Flat",
-      "3 BHK Flat",
-      "4+ BHK / Duplex / Villa",
-    ],
-  },
-  "commercial-cleaning": {
-    label: "Facility Type & Scale (1-Tap Optional):",
-    options: [
-      "Small Office / Clinic (<1,500 sq.ft)",
-      "Mid-Size Office / Gym (1,500–5,000 sq.ft)",
-      "PG / Hostel Building",
-      "Restaurant / Café",
-      "Housing Society Common Areas",
-    ],
-  },
-};
+export const DIRECT_PHONE = "+91 79957 70546";
+export const DIRECT_PHONE_TEL = "tel:+917995770546";
 
 export function BookingForm() {
   const searchParams = useSearchParams();
-  const formRef = useRef<HTMLFormElement | null>(null);
-  const successTopRef = useRef<HTMLDivElement | null>(null);
 
-  const initialCategory =
-    searchParams.get("category") || "water-tank-and-water-care";
-  const initialService =
-    searchParams.get("service") || "overhead-water-tank-cleaning";
-  const initialAddOnsParam = searchParams.get("addons") || "";
-  const initialLocality = searchParams.get("locality") || "Viman Nagar";
-  const initialPackage = searchParams.get("package") || "";
+  // Wizard Step: 1 = Service Selection, 2 = Fast Details, 3 = Confirmation
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
+  // Service Selection State
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([
+    "overhead-water-tank-cleaning",
+  ]);
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
+
+  // Form Fields State (Page 2)
   const [formData, setFormData] = useState<BookingFormData>({
     fullName: "",
     phone: "",
     preferredContact: "WhatsApp",
-    categoryId: initialCategory,
-    serviceId: initialService,
-    serviceIds: initialService ? [initialService] : [],
-    addOnIds: initialAddOnsParam
-      ? initialAddOnsParam.split(",").map((s) => s.trim()).filter(Boolean)
-      : [],
-    scopeSize: "",
+    categoryId: "water-tank-and-water-care",
+    serviceId: "overhead-water-tank-cleaning",
+    serviceIds: ["overhead-water-tank-cleaning"],
+    addOnIds: [],
     propertyType: "Apartment / Flat",
-    locality: initialLocality,
-    preferredDate: getDefaultDateString(),
+    locality: "Viman Nagar",
+    exactAddress: "",
+    geoCoordinates: "",
+    mapsUrl: "",
+    preferredDate: getTomorrowDateString(),
     preferredTimeWindow: "Morning (9:00 AM – 12:00 PM)",
-    addressAndInstructions: initialPackage
-      ? `Interested in the "${initialPackage}" package scope. `
-      : "",
+    addressAndInstructions: "",
+    scopeSize: "",
     consent: true,
-    companyWebsite: "",
   });
 
+  // UI / Submission state
   const [errors, setErrors] = useState<BookingValidationErrors>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // Geolocation detection state
-  const [detectingLocation, setDetectingLocation] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [locationSuccess, setLocationSuccess] = useState(false);
-
-  // Success state when customer finishes booking
-  const [bookingSuccess, setBookingSuccess] = useState<{
+  const [submittedBooking, setSubmittedBooking] = useState<{
     enquiryRef: string;
     submittedAt: string;
-    message: string;
-    businessWhatsApp?: string;
-    syncedToGoogleSheets?: boolean;
+    waUrl?: string;
   } | null>(null);
-  const [copiedReceipt, setCopiedReceipt] = useState(false);
 
-  // Sync URL parameters on initial load
+  // GPS state
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsSuccess, setGpsSuccess] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Read URL query params on mount
   useEffect(() => {
-    const catParam = searchParams.get("category");
-    const srvParam = searchParams.get("service");
-    const addOnsParam = searchParams.get("addons");
-    const locParam = searchParams.get("locality");
-    const pkgParam = searchParams.get("package");
+    const rawServicesParam = searchParams?.get("services");
+    const rawServiceParam = searchParams?.get("service");
+    const rawCategoryParam = searchParams?.get("category");
+    const urgentParam = searchParams?.get("urgent");
 
-    setFormData((prev) => {
-      const next = { ...prev };
-      if (catParam && serviceCategories.some((c) => c.id === catParam)) {
-        next.categoryId = catParam;
+    const initialSlugs: string[] = [];
+    if (rawServicesParam) {
+      initialSlugs.push(
+        ...rawServicesParam.split(",").map((s) => s.trim()).filter(Boolean)
+      );
+    } else if (rawServiceParam) {
+      initialSlugs.push(rawServiceParam.trim());
+    }
+
+    if (initialSlugs.length > 0) {
+      setSelectedServiceIds(initialSlugs);
+      const firstService = getServiceBySlug(initialSlugs[0]);
+      if (firstService) {
+        setSelectedCategory(firstService.categoryId);
       }
-      if (srvParam) {
-        const matched = getServiceBySlug(srvParam);
-        if (matched) {
-          next.serviceId = matched.slug;
-          next.serviceIds = [matched.slug];
-          next.categoryId = matched.categoryId;
-        }
+      // If user came via "Instant Service / urgent", jump directly to fast details!
+      if (urgentParam === "true") {
+        setCurrentStep(2);
       }
-      if (addOnsParam !== null) {
-        next.addOnIds = addOnsParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      }
-      if (locParam) {
-        next.locality = locParam;
-      }
-      if (pkgParam && !prev.addressAndInstructions.includes(pkgParam)) {
-        next.addressAndInstructions = `Interested in the "${pkgParam}" package scope. ${prev.addressAndInstructions}`.trim();
-      }
-      return next;
-    });
+    } else if (rawCategoryParam) {
+      setSelectedCategory(rawCategoryParam);
+    }
   }, [searchParams]);
 
-  const servicesInSelectedCategory = useMemo(
-    () => getServicesByCategory(formData.categoryId),
-    [formData.categoryId]
-  );
-
-  const selectedServices = useMemo(() => {
-    const slugs =
-      Array.isArray(formData.serviceIds) && formData.serviceIds.length > 0
-        ? formData.serviceIds
-        : formData.serviceId
-        ? [formData.serviceId]
-        : [];
-    return slugs
-      .map((slug) => getServiceBySlug(slug))
-      .filter((s): s is NonNullable<typeof s> => Boolean(s));
-  }, [formData.serviceIds, formData.serviceId]);
-
-  // Aggregate add-ons across all selected services
-  const suggestedAddOns = useMemo(() => {
-    const addOnMap = new Map<string, { service: any; relation: any }>();
-    for (const service of selectedServices) {
-      const rels = getRelatedRecommendations(service, 3);
-      for (const rel of rels) {
-        if (!addOnMap.has(rel.service.slug)) {
-          addOnMap.set(rel.service.slug, rel);
-        }
-      }
-    }
-    return Array.from(addOnMap.values());
-  }, [selectedServices]);
-
-  const handleCategorySelect = (newCategoryId: string) => {
+  // Keep formData synced with selected services
+  useEffect(() => {
+    const primaryId = selectedServiceIds[0] || "overhead-water-tank-cleaning";
+    const primaryService = getServiceBySlug(primaryId);
     setFormData((prev) => ({
       ...prev,
-      categoryId: newCategoryId,
+      serviceIds: selectedServiceIds,
+      serviceId: primaryId,
+      categoryId: primaryService?.categoryId || prev.categoryId,
+      addOnIds: selectedAddOnIds,
     }));
-    setErrors((prev) => ({ ...prev, categoryId: undefined }));
-  };
+  }, [selectedServiceIds, selectedAddOnIds]);
 
-  const toggleService = (serviceSlug: string) => {
-    setFormData((prev) => {
-      const current = Array.isArray(prev.serviceIds)
-        ? prev.serviceIds
-        : prev.serviceId
-        ? [prev.serviceId]
-        : [];
-      const exists = current.includes(serviceSlug);
-      const updated = exists
-        ? current.filter((s) => s !== serviceSlug)
-        : [...current, serviceSlug];
-      return {
-        ...prev,
-        serviceIds: updated,
-        serviceId: updated[0] || "",
-      };
-    });
-    setErrors((prev) => ({ ...prev, serviceId: undefined }));
-  };
-
-  const toggleAddOn = (serviceSlug: string) => {
-    setFormData((prev) => {
-      const exists = prev.addOnIds.includes(serviceSlug);
-      return {
-        ...prev,
-        addOnIds: exists
-          ? prev.addOnIds.filter((id) => id !== serviceSlug)
-          : [...prev.addOnIds, serviceSlug],
-      };
+  // Toggle service selection
+  const toggleService = (slug: string) => {
+    setSelectedServiceIds((prev) => {
+      if (prev.includes(slug)) {
+        if (prev.length === 1) return prev; // Keep at least one
+        return prev.filter((id) => id !== slug);
+      }
+      return [...prev, slug];
     });
   };
 
-  const handleFieldChange = <K extends keyof BookingFormData>(
-    field: K,
-    value: BookingFormData[K]
-  ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
+  const removeService = (slug: string) => {
+    setSelectedServiceIds((prev) => {
+      if (prev.length === 1) return prev;
+      return prev.filter((id) => id !== slug);
+    });
+  };
+
+  // Toggle add-on selection
+  const toggleAddOn = (slug: string) => {
+    setSelectedAddOnIds((prev) =>
+      prev.includes(slug) ? prev.filter((id) => id !== slug) : [...prev, slug]
+    );
+  };
+
+  // Filtered services for Step 1
+  const filteredServices = useMemo(() => {
+    if (selectedCategory === "all") {
+      return allCatalogueServices;
     }
-  };
+    return allCatalogueServices.filter((s) => s.categoryId === selectedCategory);
+  }, [selectedCategory]);
 
+  // Estimated starting total for selected services
+  const startingEstimate = useMemo(() => {
+    return selectedServiceIds.reduce((sum, slug) => {
+      const s = getServiceBySlug(slug);
+      return sum + (s?.samplePrice || 0);
+    }, 0);
+  }, [selectedServiceIds]);
+
+  // GPS Geolocation Handler
   const handleDetectLocation = () => {
-    if (typeof window === "undefined" || !navigator.geolocation) {
-      setLocationError("Geolocation is not supported by your browser.");
+    if (!navigator.geolocation) {
+      setGpsError("Geolocation is not supported by your browser.");
       return;
     }
 
-    setDetectingLocation(true);
-    setLocationError(null);
+    setGpsLoading(true);
+    setGpsError(null);
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        const coordsStr = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+        const coordsStr = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
         const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
-
-        let detectedAddress = `GPS Coordinates: ${coordsStr}`;
-        let matchedLocality = "";
-
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
-            { headers: { Accept: "application/json" } }
-          );
-          if (res.ok) {
-            const data = await res.json();
-            const addr = data.address || {};
-            const parts = [
-              addr.building || addr.amenity || addr.house_number,
-              addr.road || addr.street,
-              addr.suburb || addr.neighbourhood || addr.residential || addr.quarter,
-              addr.city || addr.town || "Pune",
-              addr.postcode,
-            ].filter(Boolean);
-
-            if (parts.length > 0) {
-              detectedAddress = parts.join(", ");
-            } else if (data.display_name) {
-              detectedAddress = data.display_name;
-            }
-
-            // Match known Pune service areas if found
-            const fullText = (
-              detectedAddress +
-              " " +
-              (addr.suburb || "") +
-              " " +
-              (addr.neighbourhood || "")
-            ).toLowerCase();
-            for (const area of siteConfig.serviceAreas) {
-              if (fullText.includes(area.name.toLowerCase())) {
-                matchedLocality = area.name;
-                break;
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("Reverse geocode failed, using coordinates", e);
-        }
 
         setFormData((prev) => ({
           ...prev,
-          exactAddress: detectedAddress,
           geoCoordinates: coordsStr,
           mapsUrl: mapsLink,
-          locality: matchedLocality || prev.locality,
         }));
 
-        setDetectingLocation(false);
-        setLocationSuccess(true);
-      },
-      (error) => {
-        setDetectingLocation(false);
-        let msg = "Could not fetch your location.";
-        if (error.code === error.PERMISSION_DENIED) {
-          msg = "Location permission denied. Please select your locality manually.";
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          msg = "Location information is currently unavailable.";
-        } else if (error.code === error.TIMEOUT) {
-          msg = "Location request timed out. Please try again.";
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const address = data.display_name || "";
+            const neighbourhood =
+              data.address?.suburb ||
+              data.address?.neighbourhood ||
+              data.address?.residential ||
+              "";
+
+            setFormData((prev) => ({
+              ...prev,
+              exactAddress: address,
+              locality: neighbourhood || prev.locality,
+            }));
+          }
+        } catch {
+          // ignore reverse geocoding fail, keep coordinates
+        } finally {
+          setGpsLoading(false);
+          setGpsSuccess(true);
         }
-        setLocationError(msg);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 30000,
-      }
+      (err) => {
+        setGpsLoading(false);
+        setGpsError(
+          err.code === 1
+            ? "Location permission denied. Please enter your locality manually."
+            : "Could not fetch location. Please enter your address."
+        );
+      },
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Step 1 -> Step 2 transition
+  const handleGoToStep2 = () => {
+    if (selectedServiceIds.length === 0) {
+      setErrors({ serviceId: "Please select at least 1 service to proceed." });
+      return;
+    }
+    setErrors({});
+    setCurrentStep(2);
+    // Smoothly scroll to top of booking section
+    const el = document.getElementById("booking-form");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Form submission (Step 2)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
 
     const validation = validateBookingForm(formData);
     if (!validation.valid) {
       setErrors(validation.errors);
-      const firstErrorKey = Object.keys(validation.errors)[0];
-      if (firstErrorKey && formRef.current) {
-        const el = formRef.current.querySelector<HTMLElement>(
-          `[name="${firstErrorKey}"]`
-        );
-        el?.focus();
-      }
+      const firstErrorField = Object.keys(validation.errors)[0];
+      const el = document.querySelector(`[name="${firstErrorField}"]`);
+      if (el) (el as HTMLElement).focus();
       return;
     }
 
-    setSubmitting(true);
+    setErrors({});
+    setIsSubmitting(true);
+
     try {
-      const response = await fetch("/api/enquiries", {
+      const res = await fetch("/api/enquiries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        if (payload.errors) {
-          setErrors(payload.errors);
-        }
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
         setSubmitError(
-          payload.message || "Please check the highlighted fields and try again."
+          result.message || "Failed to submit booking. Please try again."
         );
-        setSubmitting(false);
+        setIsSubmitting(false);
         return;
       }
 
-      setBookingSuccess({
-        enquiryRef: payload.enquiryRef,
-        submittedAt: payload.submittedAt,
-        businessWhatsApp: payload.businessWhatsApp || "",
-        syncedToGoogleSheets: Boolean(payload.syncedToGoogleSheets),
-        message:
-          payload.message ||
-          "Your booking has been successful! Our team will contact you shortly.",
+      // Generate customized WhatsApp confirmation URL
+      const selectedNames = selectedServiceIds
+        .map((slug) => getServiceBySlug(slug)?.name || slug)
+        .join(", ");
+
+      const waText = encodeURIComponent(
+        `Hi AquaShine! I just submitted a booking request.\n*Ref:* ${result.enquiryRef}\n*Name:* ${formData.fullName}\n*Service:* ${selectedNames}\n*Locality:* ${formData.locality}\n*Date:* ${formData.preferredDate} (${formData.preferredTimeWindow})\n\nPlease confirm availability!`
+      );
+
+      const dynamicWaUrl = `https://wa.me/917995770546?text=${waText}`;
+
+      setSubmittedBooking({
+        enquiryRef: result.enquiryRef,
+        submittedAt: result.submittedAt,
+        waUrl: dynamicWaUrl,
       });
-      setSubmitting(false);
-      setTimeout(() => {
-        successTopRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-    } catch {
-      // Local fallback
-      const ref = `AQS-${Date.now().toString().slice(-6)}`;
-      setBookingSuccess({
-        enquiryRef: ref,
-        submittedAt: new Date().toISOString(),
-        message: "Your booking has been successful! Our team will contact you shortly.",
-      });
-      setSubmitting(false);
+
+      setCurrentStep(3); // Go to confirmation page
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSubmitError(`Network error: ${msg}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleResetForm = () => {
-    setBookingSuccess(null);
-    setDetectingLocation(false);
-    setLocationError(null);
-    setLocationSuccess(false);
-    setFormData({
-      fullName: "",
-      phone: "",
-      preferredContact: "WhatsApp",
-      categoryId: "water-tank-and-water-care",
-      serviceId: "overhead-water-tank-cleaning",
-      addOnIds: [],
-      scopeSize: "",
-      propertyType: "Apartment / Flat",
-      locality: "Viman Nagar",
-      exactAddress: "",
-      geoCoordinates: "",
-      mapsUrl: "",
-      preferredDate: getDefaultDateString(),
-      preferredTimeWindow: "Morning (9:00 AM – 12:00 PM)",
-      addressAndInstructions: "",
-      consent: true,
-      companyWebsite: "",
-    });
-  };
-
-  // SUCCESS CONFIRMATION SCREEN
-  if (bookingSuccess) {
-    const primaryService = getServiceBySlug(formData.serviceId);
-    const category = serviceCategories.find((c) => c.id === formData.categoryId);
-    const selectedAddOns = formData.addOnIds
-      .map((id) => getServiceBySlug(id))
-      .filter((s): s is NonNullable<typeof s> => Boolean(s));
-
-    const rawBizWa = (
-      bookingSuccess.businessWhatsApp ||
-      siteConfig.contact.whatsappNumber ||
-      ""
-    ).replace(/\D/g, "");
-    const normalizedBizWa = rawBizWa
-      ? rawBizWa.startsWith("91")
-        ? rawBizWa
-        : `91${rawBizWa}`
-      : "";
-
-    const receiptPlainText = [
-      `AquaShine Booking Reference: ${bookingSuccess.enquiryRef}`,
-      `Service: ${primaryService?.name || formData.serviceId}`,
-      formData.scopeSize ? `Scope / Size: ${formData.scopeSize}` : "",
-      selectedAddOns.length > 0
-        ? `Add-ons: ${selectedAddOns.map((a) => a.name).join(", ")}`
-        : "",
-      `Customer: ${formData.fullName} (${formData.phone})`,
-      `Location: ${formData.locality}, Pune`,
-      formData.exactAddress ? `Exact GPS Location: ${formData.exactAddress}` : "",
-      formData.mapsUrl ? `Map Pin: ${formData.mapsUrl}` : "",
-      `Preferred Slot: ${formData.preferredDate} (${formData.preferredTimeWindow})`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const waText = encodeURIComponent(
-      `Hello AquaShine! I just submitted a service booking online (Ref: ${bookingSuccess.enquiryRef}).\n\n${receiptPlainText}\n\nLooking forward to your confirmation.`
-    );
-    const waDirectUrl = normalizedBizWa
-      ? `https://wa.me/${normalizedBizWa}?text=${waText}`
-      : null;
-
-    const handleCopyReceipt = async () => {
-      try {
-        await navigator.clipboard.writeText(receiptPlainText);
-        setCopiedReceipt(true);
-        setTimeout(() => setCopiedReceipt(false), 3000);
-      } catch {
-        // Fallback if clipboard blocked
-      }
-    };
-
-    return (
-      <div
-        ref={successTopRef}
-        tabIndex={-1}
-        className="rounded-3xl border border-[#188038]/30 bg-white p-6 shadow-sm outline-none sm:p-10"
-      >
-        <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E6F4EA] text-[#188038]">
-            <CheckCircle2 className="h-10 w-10 text-[#188038]" />
-          </div>
-
-          <span className="mt-4 inline-block rounded-full bg-[#E6F4EA] px-3 py-1 font-mono text-xs font-bold text-[#188038]">
-            Booking Reference: {bookingSuccess.enquiryRef}
-          </span>
-
-          <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#123B46] sm:text-3xl">
-            Your booking has been successful!
-          </h2>
-          <p className="mx-auto mt-2 max-w-lg text-base text-[#5D6B70]">
-            Our team will contact you shortly via phone or WhatsApp to confirm your preferred schedule and scope.
-          </p>
-        </div>
-
-        {/* Booking Details Card */}
-        <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-[#E3EAE7] bg-[#F8FAF9] p-6 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold tracking-wider text-[#123B46] uppercase">
-              Booking Summary Details
-            </h3>
-            {bookingSuccess.syncedToGoogleSheets && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-[#E6F4EA] px-2 py-0.5 text-[11px] font-semibold text-[#188038]">
-                <Check className="h-3 w-3" />
-                Logged to Operations Sheet
-              </span>
-            )}
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-xs text-[#5D6B70]">Main Service</p>
-              <p className="mt-0.5 font-bold text-[#172A30]">
-                {primaryService?.name || formData.serviceId}
-              </p>
-              <p className="text-xs text-[#5D6B70]">{category?.name}</p>
-              {formData.scopeSize && (
-                <span className="mt-1 inline-block rounded bg-[#E6F2EE] px-2 py-0.5 text-[11px] font-semibold text-[#123B46]">
-                  Scope: {formData.scopeSize}
-                </span>
-              )}
+  return (
+    <div id="booking-form" className="scroll-mt-24">
+      {/* =======================================================================
+          TOP STEP WIZARD HEADER (Clear, Modern 2-Step Indicator)
+          ======================================================================= */}
+      <div className="mb-8 rounded-2xl border border-[#E3EAE7] bg-white p-4 shadow-xs">
+        <div className="flex items-center justify-between">
+          {/* Step 1 Pill */}
+          <button
+            type="button"
+            onClick={() => currentStep === 2 && setCurrentStep(1)}
+            disabled={currentStep === 3}
+            className={`flex items-center gap-2 text-left transition-opacity ${
+              currentStep === 1
+                ? "text-[#123B46]"
+                : currentStep === 2
+                ? "text-[#197A73] hover:opacity-80"
+                : "opacity-40"
+            }`}
+          >
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black transition-all ${
+                currentStep === 1
+                  ? "bg-[#123B46] text-white shadow-sm ring-4 ring-[#E6F2EE]"
+                  : "bg-[#E6F8F0] text-[#0FA958]"
+              }`}
+            >
+              {currentStep > 1 ? <Check className="h-4 w-4 stroke-[3]" /> : "1"}
             </div>
-
             <div>
-              <p className="text-xs text-[#5D6B70]">Customer</p>
-              <p className="mt-0.5 font-bold text-[#172A30]">{formData.fullName}</p>
-              <p className="text-xs text-[#5D6B70]">📞 {formData.phone}</p>
-            </div>
-
-            <div>
-              <p className="text-xs text-[#5D6B70]">Location</p>
-              <p className="mt-0.5 font-semibold text-[#172A30]">
-                📍 {formData.locality}, Pune
-              </p>
-              <p className="text-xs text-[#5D6B70]">{formData.propertyType}</p>
-              {formData.exactAddress && (
-                <div className="mt-1">
-                  <p className="text-[11px] font-medium text-[#188038]">
-                    GPS: {formData.exactAddress}
-                  </p>
-                  {formData.mapsUrl && (
-                    <a
-                      href={formData.mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#25AFA5] hover:underline"
-                    >
-                      <span>Open in Maps</span>
-                      <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs text-[#5D6B70]">Preferred Slot</p>
-              <p className="mt-0.5 font-semibold text-[#172A30]">
-                📅 {formData.preferredDate}
-              </p>
-              <p className="text-xs text-[#5D6B70]">{formData.preferredTimeWindow}</p>
-            </div>
-          </div>
-
-          {selectedAddOns.length > 0 && (
-            <div className="mt-4 border-t border-[#E3EAE7] pt-3">
-              <p className="text-xs text-[#5D6B70]">Included Add-ons:</p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {selectedAddOns.map((addon) => (
-                  <span
-                    key={addon.id}
-                    className="inline-flex items-center gap-1 rounded-md bg-white border border-[#E3EAE7] px-2 py-0.5 text-xs font-medium text-[#123B46]"
-                  >
-                    <Check className="h-3 w-3 text-[#188038]" />
-                    {addon.name}
-                  </span>
-                ))}
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#5D6B70]">
+                Page 1
+              </div>
+              <div className="text-xs sm:text-sm font-bold">
+                Select Services ({selectedServiceIds.length})
               </div>
             </div>
-          )}
+          </button>
 
-          {formData.addressAndInstructions && (
-            <div className="mt-3 border-t border-[#E3EAE7] pt-3">
-              <p className="text-xs text-[#5D6B70]">Notes / Instructions:</p>
-              <p className="mt-0.5 text-xs text-[#172A30]">
-                &quot;{formData.addressAndInstructions}&quot;
-              </p>
-            </div>
-          )}
-        </div>
+          {/* Connection Line */}
+          <div className="mx-2 h-0.5 flex-1 bg-[#E3EAE7] sm:mx-4">
+            <div
+              className={`h-full bg-[#0FA958] transition-all duration-300 ${
+                currentStep === 1 ? "w-0" : currentStep === 2 ? "w-1/2" : "w-full"
+              }`}
+            />
+          </div>
 
-        {/* Action Buttons */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          {waDirectUrl && (
-            <a
-              href={waDirectUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-[#20ba59]"
+          {/* Step 2 Pill */}
+          <div
+            className={`flex items-center gap-2 text-left ${
+              currentStep === 2
+                ? "text-[#123B46]"
+                : currentStep === 3
+                ? "text-[#0FA958]"
+                : "opacity-50"
+            }`}
+          >
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black transition-all ${
+                currentStep === 2
+                  ? "bg-[#123B46] text-white shadow-sm ring-4 ring-[#E6F2EE]"
+                  : currentStep === 3
+                  ? "bg-[#E6F8F0] text-[#0FA958]"
+                  : "bg-[#F8FAF9] text-[#5D6B70] border border-[#E3EAE7]"
+              }`}
             >
-              <MessageSquare className="h-4 w-4" />
-              <span>Chat on WhatsApp for Instant Confirmation</span>
-            </a>
-          )}
-
-          <button
-            type="button"
-            onClick={handleCopyReceipt}
-            className="inline-flex items-center gap-2 rounded-xl border border-[#123B46]/25 bg-[#E6F2EE] px-5 py-3 text-sm font-semibold text-[#123B46] hover:bg-[#25AFA5]/20"
-          >
-            <Check className="h-4 w-4 text-[#188038]" />
-            <span>
-              {copiedReceipt ? "Booking Receipt Copied!" : "Copy Booking Summary"}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleResetForm}
-            className="inline-flex items-center gap-2 rounded-xl border border-[#D0DDD8] bg-white px-5 py-3 text-sm font-semibold text-[#172A30] hover:bg-[#F8FAF9]"
-          >
-            <RotateCcw className="h-4 w-4 text-[#5D6B70]" />
-            <span>Book Another Service</span>
-          </button>
+              {currentStep === 3 ? <Check className="h-4 w-4 stroke-[3]" /> : "2"}
+            </div>
+            <div>
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#5D6B70]">
+                Page 2
+              </div>
+              <div className="text-xs sm:text-sm font-bold">Fast Details (1 min)</div>
+            </div>
+          </div>
         </div>
       </div>
-    );
-  }
 
-  // MAIN STREAMLINED BOOKING FORM
-  return (
-    <div
-      id="booking-form"
-      className="scroll-mt-24 grid grid-cols-1 items-start gap-8 lg:grid-cols-12"
-    >
-      <form
-        ref={formRef}
-        method="POST"
-        action="/api/enquiries"
-        noValidate
-        onSubmit={handleSubmit}
-        className="rounded-3xl border border-[#E3EAE7] bg-white p-6 shadow-xs sm:p-8 lg:col-span-7"
-      >
-        <div className="border-b border-[#E3EAE7] pb-4">
-          <div className="flex items-center gap-2">
-            <span className="rounded-md bg-[#E6F2EE] px-2.5 py-0.5 text-xs font-semibold text-[#123B46]">
-              Easy 2-Step Booking
-            </span>
-            <span className="text-xs text-[#5D6B70]">Instant Quotation Request</span>
+      {/* =======================================================================
+          PAGE 1: SERVICE SELECTION
+          ======================================================================= */}
+      {currentStep === 1 && (
+        <div className="space-y-6">
+          {/* Category Tabs / Filters */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory("all")}
+              className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                selectedCategory === "all"
+                  ? "bg-[#123B46] text-white shadow-xs"
+                  : "bg-white text-[#172A30] border border-[#E3EAE7] hover:bg-[#E6F2EE]"
+              }`}
+            >
+              ⭐ All Services ({allCatalogueServices.length})
+            </button>
+            {serviceCategories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                  selectedCategory === cat.id
+                    ? "bg-[#123B46] text-white shadow-xs"
+                    : "bg-white text-[#172A30] border border-[#E3EAE7] hover:bg-[#E6F2EE]"
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
           </div>
-          <h2 className="mt-2 text-2xl font-bold tracking-tight text-[#172A30] sm:text-3xl">
-            Choose Your Service &amp; Book
-          </h2>
-          <p className="mt-1 text-sm text-[#5D6B70]">
-            Select your main service, check any add-ons you need, and share your contact details.
-          </p>
-        </div>
 
-        {submitError && (
-          <div
-            role="alert"
-            className="mt-6 flex items-start gap-2.5 rounded-xl border border-[#C5221F]/30 bg-[#FCE8E6] p-4 text-sm text-[#C5221F]"
-          >
-            <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{submitError}</span>
-          </div>
-        )}
+          {/* Service Cards Grid (Interactive Cards) */}
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredServices.map((service) => {
+              const isSelected = selectedServiceIds.includes(service.slug);
 
-        {/* Honeypot anti-spam field */}
-        <div className="visually-hidden" aria-hidden="true">
-          <label htmlFor="company-website-hp">Company Website (Leave blank)</label>
-          <input
-            type="text"
-            id="company-website-hp"
-            name="companyWebsite"
-            tabIndex={-1}
-            autoComplete="off"
-            value={formData.companyWebsite || ""}
-            onChange={(e) => handleFieldChange("companyWebsite", e.target.value)}
-          />
-        </div>
-
-        {/* STEP 1: CHOOSE SERVICES & ADD-ONS (Multiple Services Supported) */}
-        <div className="mt-6 border-b border-[#E3EAE7] pb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B46] text-xs font-bold text-white">
-                1
-              </span>
-              <h3 className="text-base font-bold text-[#172A30]">
-                Choose Services
-              </h3>
-            </div>
-            {selectedServices.length > 0 && (
-              <span className="rounded-full bg-[#E6F2EE] px-2.5 py-0.5 text-xs font-bold text-[#123B46]">
-                {selectedServices.length} Selected
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-[#5D6B70]">
-            You can select multiple services across categories to book everything in one visit.
-          </p>
-
-          {/* Active Selected Service Chips */}
-          {selectedServices.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-[#D0DDD8] bg-[#F8FAF9] p-2.5">
-              <span className="mr-1 text-xs font-semibold text-[#5D6B70]">Selected:</span>
-              {selectedServices.map((srv) => (
-                <span
-                  key={srv.id}
-                  className="inline-flex items-center gap-1 rounded-lg bg-[#123B46] px-2.5 py-1 text-xs font-medium text-white shadow-2xs"
+              return (
+                <div
+                  key={service.id}
+                  onClick={() => toggleService(service.slug)}
+                  className={`group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border p-3.5 transition-all duration-200 select-none ${
+                    isSelected
+                      ? "border-[#123B46] bg-[#E6F2EE]/40 shadow-md ring-2 ring-[#123B46]/20"
+                      : "border-[#E3EAE7] bg-white hover:border-[#25AFA5] hover:shadow-xs"
+                  }`}
                 >
-                  <span>{srv.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleService(srv.slug)}
-                    className="ml-0.5 rounded-full p-0.5 text-white/80 hover:bg-white/20 hover:text-white"
-                    aria-label={`Remove ${srv.name}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
+                  <div>
+                    {/* Thumbnail Image + Price Tag */}
+                    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl bg-[#E6F2EE]">
+                      <img
+                        src={service.image.src}
+                        alt={service.image.alt}
+                        width={400}
+                        height={250}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
 
-          {/* Category Pills */}
-          <div className="mt-4">
-            <p className="text-xs font-medium text-[#5D6B70]">
-              Browse Service Categories:
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {serviceCategories.map((cat) => {
-                const isSelected = formData.categoryId === cat.id;
-                const icon = CATEGORY_ICONS[cat.id] || "✨";
-                const catSelectedCount = selectedServices.filter(
-                  (s) => s.categoryId === cat.id
-                ).length;
-
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => handleCategorySelect(cat.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
-                      isSelected
-                        ? "border-[#123B46] bg-[#123B46] text-white shadow-2xs"
-                        : "border-[#E3EAE7] bg-[#F8FAF9] text-[#172A30] hover:border-[#25AFA5] hover:bg-white"
-                    }`}
-                  >
-                    <span>{icon}</span>
-                    <span>{cat.name}</span>
-                    {catSelectedCount > 0 && (
-                      <span
-                        className={`ml-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold ${
-                          isSelected
-                            ? "bg-white text-[#123B46]"
-                            : "bg-[#123B46] text-white"
-                        }`}
-                      >
-                        {catSelectedCount}
+                      {/* Starting Price Pill */}
+                      <span className="absolute top-2.5 left-2.5 rounded-lg bg-[#123B46]/90 px-2 py-0.5 text-xs font-extrabold text-white backdrop-blur-md shadow-sm">
+                        {formatServicePriceLabel(service)}
                       </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Service Selection Cards */}
-          <div className="mt-4">
-            <p className="text-xs font-medium text-[#5D6B70]">
-              Tap services in this category to select / deselect:
-            </p>
-            <div className="mt-2 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {servicesInSelectedCategory.map((srv) => {
-                const isSelected = (formData.serviceIds || []).includes(srv.slug);
-                return (
-                  <button
-                    key={srv.id}
-                    type="button"
-                    onClick={() => toggleService(srv.slug)}
-                    className={`flex items-start justify-between rounded-xl border p-3.5 text-left transition-all ${
-                      isSelected
-                        ? "border-[#123B46] bg-[#E6F2EE] text-[#123B46] shadow-2xs ring-2 ring-[#123B46]"
-                        : "border-[#E3EAE7] bg-white text-[#172A30] hover:border-[#25AFA5]"
-                    }`}
-                  >
-                    <div className="flex-1 pr-2">
-                      <p className="text-sm font-bold leading-snug">{srv.name}</p>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-[#5D6B70]">
-                        {srv.shortDescription}
-                      </p>
-                      <span className="mt-2 inline-block rounded bg-white/70 border border-[#E3EAE7] px-2 py-0.5 text-[11px] font-semibold text-[#123B46]">
-                        {formatServicePriceLabel(srv)}
-                      </span>
-                    </div>
-                    <div
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                        isSelected
-                          ? "border-[#123B46] bg-[#123B46] text-white"
-                          : "border-[#D0DDD8] bg-white text-transparent"
-                      }`}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 1-Tap Quick Scope / Property Size Selector */}
-          {CATEGORY_SCOPE_OPTIONS[formData.categoryId] && (
-            <div className="mt-4">
-              <p className="text-xs font-medium text-[#5D6B70]">
-                {CATEGORY_SCOPE_OPTIONS[formData.categoryId].label}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {CATEGORY_SCOPE_OPTIONS[formData.categoryId].options.map((opt) => {
-                  const isSelected = formData.scopeSize === opt;
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() =>
-                        handleFieldChange("scopeSize", isSelected ? "" : opt)
-                      }
-                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${
-                        isSelected
-                          ? "border-[#123B46] bg-[#E6F2EE] text-[#123B46] ring-1 ring-[#123B46]"
-                          : "border-[#E3EAE7] bg-[#F8FAF9] text-[#172A30] hover:border-[#25AFA5] hover:bg-white"
-                      }`}
-                    >
-                      {isSelected && <Check className="h-3 w-3 text-[#188038]" />}
-                      <span>{opt}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Add-Ons for this service */}
-          {suggestedAddOns.length > 0 && (
-            <div className="mt-5 rounded-2xl border border-[#25AFA5]/30 bg-[#E6F2EE]/40 p-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[#25AFA5]" />
-                <p className="text-xs font-bold tracking-wider text-[#123B46] uppercase">
-                  Add-Ons &amp; Optional Enhancements
-                </p>
-              </div>
-              <p className="mt-0.5 text-xs text-[#5D6B70]">
-                Click any add-on below to include it in your service:
-              </p>
-
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {suggestedAddOns.map(({ service, relation }) => {
-                  const isChecked = formData.addOnIds.includes(service.slug);
-                  return (
-                    <button
-                      key={service.id}
-                      type="button"
-                      onClick={() => toggleAddOn(service.slug)}
-                      className={`flex items-start justify-between rounded-xl border p-3 text-left transition-all ${
-                        isChecked
-                          ? "border-[#123B46] bg-[#123B46] text-white shadow-2xs"
-                          : "border-[#D0DDD8] bg-white text-[#172A30] hover:border-[#25AFA5]"
-                      }`}
-                    >
-                      <div className="pr-2">
-                        <p className="text-xs font-bold">{service.name}</p>
-                        <p
-                          className={`mt-0.5 text-[11px] leading-tight ${
-                            isChecked ? "text-[#E6F2EE]" : "text-[#5D6B70]"
-                          }`}
-                        >
-                          {relation.reason}
-                        </p>
-                      </div>
+                      {/* Selection Checkmark Bubble */}
                       <div
-                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                          isChecked
-                            ? "border-white bg-white text-[#123B46]"
-                            : "border-[#5D6B70] bg-transparent text-transparent"
+                        className={`absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full shadow-md transition-all ${
+                          isSelected
+                            ? "bg-[#0FA958] text-white scale-100"
+                            : "bg-white/90 text-gray-400 group-hover:scale-110"
                         }`}
                       >
-                        <Check className="h-3 w-3" />
+                        {isSelected ? (
+                          <Check className="h-4 w-4 stroke-[3]" />
+                        ) : (
+                          <Plus className="h-4 w-4 stroke-[2]" />
+                        )}
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+                    </div>
 
-        {/* STEP 2: SIMPLE CONTACT & APPOINTMENT */}
-        <div className="mt-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B46] text-xs font-bold text-white">
-              2
-            </span>
-            <h3 className="text-base font-bold text-[#172A30]">
-              Your Contact &amp; Schedule Details
-            </h3>
+                    {/* Title & Short Description */}
+                    <div className="mt-3">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#197A73]">
+                        {service.categoryName}
+                      </div>
+                      <h3 className="mt-0.5 text-base font-extrabold text-[#172A30] group-hover:text-[#123B46]">
+                        {service.name}
+                      </h3>
+                      <p className="mt-1 text-xs text-[#5D6B70] line-clamp-2 leading-relaxed">
+                        {service.shortDescription}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Button */}
+                  <div className="mt-4 pt-3 border-t border-[#E3EAE7]">
+                    <div
+                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition-all ${
+                        isSelected
+                          ? "bg-[#123B46] text-white"
+                          : "bg-[#F8FAF9] text-[#123B46] group-hover:bg-[#E6F2EE]"
+                      }`}
+                    >
+                      {isSelected ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                          <span>Service Selected</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Add to Booking</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {/* Full Name */}
-            <div>
-              <label
-                htmlFor="booking-fullName"
-                className="block text-xs font-semibold text-[#172A30]"
-              >
-                Full Name <span className="text-[#C5221F]">*</span>
-              </label>
-              <input
-                type="text"
-                id="booking-fullName"
-                name="fullName"
-                required
-                minLength={2}
-                maxLength={100}
-                placeholder="e.g. Rohan Deshmukh"
-                value={formData.fullName}
-                onChange={(e) => handleFieldChange("fullName", e.target.value)}
-                className="mt-1 w-full rounded-xl border border-[#E3EAE7] bg-[#F8FAF9] px-3.5 py-2.5 text-sm text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
-              />
-              {errors.fullName && (
-                <p className="mt-1 text-xs text-[#C5221F]">{errors.fullName}</p>
-              )}
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label
-                htmlFor="booking-phone"
-                className="block text-xs font-semibold text-[#172A30]"
-              >
-                Phone / WhatsApp Number <span className="text-[#C5221F]">*</span>
-              </label>
-              <input
-                type="tel"
-                id="booking-phone"
-                name="phone"
-                required
-                inputMode="tel"
-                placeholder="e.g. 98765 43210"
-                value={formData.phone}
-                onChange={(e) => handleFieldChange("phone", e.target.value)}
-                className="mt-1 w-full rounded-xl border border-[#E3EAE7] bg-[#F8FAF9] px-3.5 py-2.5 text-sm text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
-              />
-              {errors.phone && (
-                <p className="mt-1 text-xs text-[#C5221F]">{errors.phone}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Location & GPS Detection */}
-          <div className="rounded-2xl border border-[#D0DDD8] bg-[#F8FAF9] p-4">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <label
-                  htmlFor="booking-locality"
-                  className="block text-xs font-bold text-[#172A30]"
-                >
-                  Service Location in Pune <span className="text-[#C5221F]">*</span>
-                </label>
-                <p className="text-[11px] text-[#5D6B70]">
-                  Select your area or use your device GPS for exact location pinpointing
-                </p>
+          {/* Quick Mini Add-on Option (TDS Measurement) */}
+          <div className="rounded-2xl border border-[#D0DDD8] bg-white p-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">💧</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-extrabold text-[#123B46]">
+                      Optional Mini Add-On:
+                    </span>
+                    <span className="rounded-md bg-[#E6F8F0] px-2 py-0.5 text-[11px] font-bold text-[#0FA958]">
+                      Only ₹79
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#5D6B70]">
+                    TDS Measurement &amp; Water Quality Testing (check drinking &amp; tank purity on-site)
+                  </p>
+                </div>
               </div>
 
               <button
                 type="button"
-                onClick={handleDetectLocation}
-                disabled={detectingLocation}
-                className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-[#25AFA5] bg-white px-3.5 py-2 text-xs font-bold text-[#123B46] shadow-2xs transition-all hover:bg-[#E6F2EE] disabled:opacity-60"
+                onClick={() => toggleAddOn("tds-measurement")}
+                className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                  selectedAddOnIds.includes("tds-measurement")
+                    ? "bg-[#0FA958] text-white"
+                    : "border border-[#123B46] text-[#123B46] hover:bg-[#E6F2EE]"
+                }`}
               >
-                {detectingLocation ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[#25AFA5]" />
-                    <span>Detecting Location...</span>
-                  </>
-                ) : (
-                  <>
-                    <Crosshair className="h-3.5 w-3.5 text-[#25AFA5]" />
-                    <span>Select Your Current Location</span>
-                  </>
+                {selectedAddOnIds.includes("tds-measurement")
+                  ? "✓ Add-on Added"
+                  : "+ Add TDS Test (₹79)"}
+              </button>
+            </div>
+          </div>
+
+          {/* Sticky Bottom Summary & Proceed Bar */}
+          <div className="sticky bottom-16 z-30 rounded-2xl border border-[#123B46]/20 bg-white/95 p-4 shadow-xl backdrop-blur-md md:bottom-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-[#123B46] px-2.5 py-0.5 text-xs font-black text-white">
+                    {selectedServiceIds.length} Selected
+                  </span>
+                  <span className="text-xs font-extrabold text-[#172A30]">
+                    Starting from ₹{startingEstimate}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-[#5D6B70]">
+                  {selectedServiceIds.map((slug) => (
+                    <span
+                      key={slug}
+                      className="inline-flex items-center gap-1 rounded bg-[#F8FAF9] px-2 py-0.5 border border-[#E3EAE7]"
+                    >
+                      {getServiceBySlug(slug)?.name || slug}
+                      <X
+                        className="h-3 w-3 cursor-pointer text-gray-400 hover:text-red-500"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeService(slug);
+                        }}
+                      />
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGoToStep2}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B46] px-6 py-3.5 text-sm font-black text-white shadow-md transition-all hover:bg-[#0D2C35] active:scale-[0.98]"
+                >
+                  <span>Next: Fast Details (1 min)</span>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================================================
+          PAGE 2: SIMPLE FAST DETAILS (Frictionless, 1-Minute Booking)
+          ======================================================================= */}
+      {currentStep === 2 && (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Back Button & Selected Scope Summary */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[#E3EAE7] bg-[#F8FAF9] p-4">
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#123B46] hover:text-[#197A73] transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>← Change Selected Services</span>
+            </button>
+
+            <div className="flex items-center gap-2 text-xs font-bold text-[#172A30]">
+              <span className="text-[#5D6B70]">Booking:</span>
+              <span className="rounded-lg bg-[#E6F2EE] px-2.5 py-1 text-[#123B46]">
+                {selectedServiceIds.length} service(s) • Est. ₹{startingEstimate}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 1: Your Contact Details */}
+          <div className="rounded-2xl border border-[#E3EAE7] bg-white p-5 shadow-xs sm:p-6">
+            <h3 className="flex items-center gap-2 text-base font-extrabold text-[#172A30]">
+              <User className="h-4 w-4 text-[#197A73]" />
+              <span>1. Your Contact Information</span>
+            </h3>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-bold text-[#172A30]">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rahul Sharma"
+                  value={formData.fullName}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, fullName: e.target.value }))
+                  }
+                  className="mt-1.5 w-full rounded-xl border border-[#D0DDD8] bg-[#F8FAF9] px-3.5 py-2.5 text-sm text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
+                />
+                {errors.fullName && (
+                  <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#172A30]">
+                  WhatsApp / Phone Number <span className="text-red-500">*</span>
+                </label>
+                <div className="relative mt-1.5">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-xs font-bold text-[#5D6B70]">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    placeholder="98765 43210"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        phone: e.target.value.replace(/\D/g, ""),
+                      }))
+                    }
+                    className="w-full rounded-xl border border-[#D0DDD8] bg-[#F8FAF9] pl-12 pr-3.5 py-2.5 text-sm text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none font-mono"
+                  />
+                </div>
+                {errors.phone && (
+                  <p className="mt-1 text-xs text-red-600">{errors.phone}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Contact Preference Chips */}
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-[#5D6B70]">
+                How should we confirm your slot?
+              </label>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {(["WhatsApp", "Phone Call", "Either"] as ContactMethod[]).map(
+                  (method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() =>
+                        setFormData((prev) => ({ ...prev, preferredContact: method }))
+                      }
+                      className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                        formData.preferredContact === method
+                          ? "bg-[#123B46] text-white shadow-xs"
+                          : "border border-[#D0DDD8] bg-[#F8FAF9] text-[#172A30] hover:bg-[#E6F2EE]"
+                      }`}
+                    >
+                      {method === "WhatsApp" ? "💬 WhatsApp (Fastest)" : method}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Preferred Date & Time Window */}
+          <div className="rounded-2xl border border-[#E3EAE7] bg-white p-5 shadow-xs sm:p-6">
+            <h3 className="flex items-center gap-2 text-base font-extrabold text-[#172A30]">
+              <Calendar className="h-4 w-4 text-[#197A73]" />
+              <span>2. When do you need the service?</span>
+            </h3>
+
+            {/* Quick 1-Tap Date Chips */}
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-[#5D6B70]">
+                Select Date:
+              </label>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      preferredDate: getTomorrowDateString(),
+                    }))
+                  }
+                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                    formData.preferredDate === getTomorrowDateString()
+                      ? "bg-[#123B46] text-white shadow-xs"
+                      : "border border-[#D0DDD8] bg-[#F8FAF9] text-[#172A30] hover:bg-[#E6F2EE]"
+                  }`}
+                >
+                  Tomorrow
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      preferredDate: getDayAfterDateString(),
+                    }))
+                  }
+                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                    formData.preferredDate === getDayAfterDateString()
+                      ? "bg-[#123B46] text-white shadow-xs"
+                      : "border border-[#D0DDD8] bg-[#F8FAF9] text-[#172A30] hover:bg-[#E6F2EE]"
+                  }`}
+                >
+                  Day After
+                </button>
+
+                <input
+                  type="date"
+                  value={formData.preferredDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      preferredDate: e.target.value,
+                    }))
+                  }
+                  className="rounded-xl border border-[#D0DDD8] bg-[#F8FAF9] px-3 py-1.5 text-xs font-bold text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Time Slots */}
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-[#5D6B70]">
+                Preferred Time Slot:
+              </label>
+              <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {TIME_WINDOWS.map((window) => (
+                  <button
+                    key={window}
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        preferredTimeWindow: window,
+                      }))
+                    }
+                    className={`rounded-xl p-2.5 text-left text-xs font-bold transition-all ${
+                      formData.preferredTimeWindow === window
+                        ? "bg-[#123B46] text-white shadow-xs"
+                        : "border border-[#D0DDD8] bg-[#F8FAF9] text-[#172A30] hover:bg-[#E6F2EE]"
+                    }`}
+                  >
+                    {window.includes("Morning")
+                      ? "☀️ Morning"
+                      : window.includes("Afternoon")
+                      ? "🌤️ Afternoon"
+                      : window.includes("Evening")
+                      ? "🌙 Evening"
+                      : "💬 Flexible"}
+                    <span className="block mt-0.5 text-[10px] opacity-75 font-normal truncate">
+                      {window}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Location & Address */}
+          <div className="rounded-2xl border border-[#E3EAE7] bg-white p-5 shadow-xs sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-base font-extrabold text-[#172A30]">
+                <MapPin className="h-4 w-4 text-[#197A73]" />
+                <span>3. Where in Pune?</span>
+              </h3>
+
+              {/* 1-Tap Auto-GPS Button */}
+              <button
+                type="button"
+                onClick={handleDetectLocation}
+                disabled={gpsLoading}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#197A73] bg-[#E6F8F0] px-3 py-1.5 text-xs font-bold text-[#197A73] hover:bg-[#D0F2E5] transition-colors disabled:opacity-50"
+              >
+                {gpsLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Crosshair className="h-3.5 w-3.5" />
+                )}
+                <span>{gpsLoading ? "Detecting..." : "Auto-Detect My Location"}</span>
               </button>
             </div>
 
-            {/* Exact GPS Location Detected Banner */}
-            {formData.exactAddress && (
-              <div className="mt-3 rounded-xl border border-[#188038]/30 bg-[#E6F4EA] p-3 text-xs">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#188038]" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-[#188038]">
-                          Exact Location Detected &amp; Saved
-                        </span>
-                        <span className="rounded bg-[#188038] px-1.5 py-0.5 text-[10px] font-bold text-white">
-                          GPS Verified
-                        </span>
-                      </div>
-                      <p className="mt-1 font-medium leading-relaxed text-[#172A30]">
-                        {formData.exactAddress}
-                      </p>
-                      {formData.mapsUrl && (
-                        <a
-                          href={formData.mapsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1.5 inline-flex items-center gap-1 font-semibold text-[#123B46] hover:underline"
-                        >
-                          <span>Open in Google Maps</span>
-                          <ExternalLink className="h-3 w-3 text-[#25AFA5]" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        exactAddress: "",
-                        geoCoordinates: "",
-                        mapsUrl: "",
-                      }));
-                      setLocationSuccess(false);
-                    }}
-                    className="rounded-md px-2 py-1 text-[11px] font-medium text-[#5D6B70] hover:bg-white hover:text-[#C5221F]"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
+            {gpsSuccess && (
+              <p className="mt-2 text-xs font-bold text-[#0FA958]">
+                ✓ GPS coordinates attached to booking for accurate crew navigation.
+              </p>
             )}
 
-            {/* Location Permission / Fetch Error */}
-            {locationError && (
-              <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-[#C5221F]/30 bg-[#FCE8E6] p-2.5 text-xs text-[#C5221F]">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{locationError}</span>
-              </div>
+            {gpsError && (
+              <p className="mt-2 text-xs font-medium text-amber-700">{gpsError}</p>
             )}
 
-            {/* Locality Dropdown */}
-            <div className="mt-3">
-              <label
-                htmlFor="booking-locality"
-                className="block text-[11px] font-semibold text-[#5D6B70] uppercase"
-              >
-                Area / Locality Hub
-              </label>
-              <select
-                id="booking-locality"
-                name="locality"
-                value={formData.locality}
-                onChange={(e) => handleFieldChange("locality", e.target.value)}
-                className="mt-1 w-full rounded-xl border border-[#E3EAE7] bg-white px-3 py-2 text-sm text-[#172A30] focus:border-[#123B46] focus:outline-none"
-              >
-                {siteConfig.serviceAreas.map((area) => (
-                  <option key={area.slug} value={area.name}>
-                    {area.name} {area.tier === "primary" ? "(Viman Nagar Hub)" : ""}
-                  </option>
-                ))}
-                <option value="Other Pune Locality">Other Pune Locality</option>
-              </select>
+            {/* Quick Locality Chips */}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {QUICK_LOCALITIES.map((loc) => (
+                <button
+                  key={loc}
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, locality: loc }))}
+                  className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${
+                    formData.locality === loc
+                      ? "bg-[#123B46] text-white"
+                      : "border border-[#D0DDD8] bg-[#F8FAF9] text-[#172A30] hover:bg-[#E6F2EE]"
+                  }`}
+                >
+                  {loc}
+                </button>
+              ))}
             </div>
-          </div>
 
-          {/* Schedule: Date & Time Window */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {/* Date */}
-            <div>
-              <label
-                htmlFor="booking-preferredDate"
-                className="block text-xs font-semibold text-[#172A30]"
-              >
-                Preferred Date <span className="text-[#C5221F]">*</span>
+            {/* Address Input */}
+            <div className="mt-3">
+              <label className="block text-xs font-bold text-[#5D6B70]">
+                Flat / Society / Street Address:
               </label>
-              <input
-                type="date"
-                id="booking-preferredDate"
-                name="preferredDate"
-                required
-                min={getTodayDateString()}
-                value={formData.preferredDate}
-                onChange={(e) => handleFieldChange("preferredDate", e.target.value)}
-                className="mt-1 w-full rounded-xl border border-[#E3EAE7] bg-[#F8FAF9] px-3 py-2.5 text-sm text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
+              <textarea
+                rows={2}
+                placeholder="e.g. Flat 402, Konark Nagar, Near Symbiosis, Viman Nagar"
+                value={formData.exactAddress || formData.addressAndInstructions}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    exactAddress: e.target.value,
+                    addressAndInstructions: e.target.value,
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-[#D0DDD8] bg-[#F8FAF9] p-3 text-xs text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
               />
             </div>
+          </div>
 
-            {/* Time Window */}
-            <div>
-              <label
-                htmlFor="booking-preferredTimeWindow"
-                className="block text-xs font-semibold text-[#172A30]"
-              >
-                Preferred Time Slot
-              </label>
-              <select
-                id="booking-preferredTimeWindow"
-                name="preferredTimeWindow"
-                value={formData.preferredTimeWindow}
-                onChange={(e) =>
-                  handleFieldChange(
-                    "preferredTimeWindow",
-                    e.target.value as TimeWindow
-                  )
-                }
-                className="mt-1 w-full rounded-xl border border-[#E3EAE7] bg-[#F8FAF9] px-3 py-2.5 text-sm text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
-              >
-                {TIME_WINDOWS.map((tw) => (
-                  <option key={tw} value={tw}>
-                    {tw}
-                  </option>
-                ))}
-              </select>
+          {/* Card 4: Property Type */}
+          <div className="rounded-2xl border border-[#E3EAE7] bg-white p-5 shadow-xs sm:p-6">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#5D6B70]">
+              Property Type
+            </h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PROPERTY_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, propertyType: type }))}
+                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                    formData.propertyType === type
+                      ? "bg-[#123B46] text-white shadow-xs"
+                      : "border border-[#D0DDD8] bg-[#F8FAF9] text-[#172A30] hover:bg-[#E6F2EE]"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Optional Notes */}
-          <div>
-            <label
-              htmlFor="booking-notes"
-              className="block text-xs font-semibold text-[#172A30]"
-            >
-              Property Name / Specific Requirements (Optional)
-            </label>
-            <input
-              type="text"
-              id="booking-notes"
-              name="addressAndInstructions"
-              placeholder="e.g. 2 BHK apartment near Datta Mandir Chowk, or 1000L tank capacity"
-              value={formData.addressAndInstructions}
-              onChange={(e) =>
-                handleFieldChange("addressAndInstructions", e.target.value)
-              }
-              className="mt-1 w-full rounded-xl border border-[#E3EAE7] bg-[#F8FAF9] px-3.5 py-2.5 text-sm text-[#172A30] focus:border-[#123B46] focus:bg-white focus:outline-none"
-            />
-          </div>
-
-          {/* Mobile Quick Review Box (visible on mobile so user sees what they booked before submitting) */}
-          <div className="rounded-xl border border-[#D0DDD8] bg-[#F8FAF9] p-3.5 lg:hidden">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-[#5D6B70]">
-                Selected Services ({selectedServices.length}):
-              </span>
-              <span className="font-bold text-[#123B46] text-right truncate max-w-[220px]">
-                {selectedServices.length > 0
-                  ? selectedServices.map((s) => s.name).join(" + ")
-                  : "Please select a service"}
-              </span>
+          {/* Submission Error Banner */}
+          {submitError && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-red-300 bg-red-50 p-4 text-xs font-semibold text-red-800">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{submitError}</span>
             </div>
-            {formData.scopeSize && (
-              <div className="mt-1.5 flex items-center justify-between text-xs text-[#5D6B70]">
-                <span>Size / Scope:</span>
-                <span className="font-semibold text-[#172A30]">{formData.scopeSize}</span>
-              </div>
-            )}
-            {formData.addOnIds && formData.addOnIds.length > 0 && (
-              <div className="mt-1.5 flex items-center justify-between text-xs text-[#5D6B70]">
-                <span>Add-ons ({formData.addOnIds.length}):</span>
-                <span className="font-medium text-[#172A30] truncate max-w-[200px] text-right">
-                  {formData.addOnIds
-                    .map((id) => getServiceBySlug(id)?.name)
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Big Prominent Submit Button */}
-          <div className="pt-2">
+          {/* Big Submit Button */}
+          <div className="space-y-3">
             <button
               type="submit"
-              disabled={submitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#123B46] px-6 py-4 text-base font-bold text-white shadow-sm transition-all hover:bg-[#0D2C35] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#123B46] py-4 text-base font-black text-white shadow-lg transition-all hover:bg-[#0D2C35] active:scale-[0.99] disabled:opacity-60"
             >
-              <Send aria-hidden="true" className="h-4 w-4 text-[#25AFA5]" />
-              <span>
-                {submitting
-                  ? "Submitting Your Booking..."
-                  : "Book Service Now"}
-              </span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Submitting Your Booking...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5 text-[#25AFA5]" />
+                  <span>Confirm Booking Request</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </button>
-            <p className="mt-2 text-center text-xs text-[#5D6B70]">
-              🔒 Transparent scope review • No advance payment required for inquiry
-            </p>
+
+            {/* Or Skip Form & Book on WhatsApp */}
+            <div className="text-center pt-2">
+              <span className="text-xs text-[#5D6B70]">Prefer zero forms? </span>
+              <a
+                href={EXACT_WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-black text-[#0FA958] underline hover:text-[#0C8946]"
+              >
+                Click here to book directly on WhatsApp →
+              </a>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* =======================================================================
+          PAGE 3: CONFIRMATION & 1-TAP WHATSAPP DISPATCH
+          ======================================================================= */}
+      {currentStep === 3 && submittedBooking && (
+        <div className="rounded-3xl border border-[#E3EAE7] bg-white p-6 sm:p-10 shadow-lg text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E6F8F0] text-[#0FA958] shadow-sm">
+            <CheckCircle2 className="h-8 w-8 stroke-[2.5]" />
+          </div>
+
+          <h2 className="mt-4 text-2xl sm:text-3xl font-black text-[#172A30]">
+            Booking Request Received!
+          </h2>
+
+          <p className="mt-1 text-sm text-[#5D6B70]">
+            Your enquiry reference is{" "}
+            <span className="font-mono font-black text-[#123B46]">
+              {submittedBooking.enquiryRef}
+            </span>
+          </p>
+
+          {/* Details Box */}
+          <div className="mt-6 mx-auto max-w-md rounded-2xl border border-[#E3EAE7] bg-[#F8FAF9] p-4 text-left text-xs space-y-2">
+            <div className="flex justify-between">
+              <span className="text-[#5D6B70]">Customer:</span>
+              <span className="font-bold text-[#172A30]">{formData.fullName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#5D6B70]">Phone:</span>
+              <span className="font-bold font-mono text-[#172A30]">+91 {formData.phone}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#5D6B70]">Services:</span>
+              <span className="font-bold text-[#123B46] text-right max-w-[200px]">
+                {selectedServiceIds
+                  .map((s) => getServiceBySlug(s)?.name || s)
+                  .join(", ")}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#5D6B70]">Scheduled Date:</span>
+              <span className="font-bold text-[#172A30]">{formData.preferredDate} ({formData.preferredTimeWindow})</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#5D6B70]">Locality:</span>
+              <span className="font-bold text-[#172A30]">{formData.locality}</span>
+            </div>
+          </div>
+
+          {/* 1-Tap WhatsApp Button */}
+          <div className="mt-8 space-y-3 max-w-md mx-auto">
+            <a
+              href={submittedBooking.waUrl || EXACT_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3.5 text-sm font-black text-white shadow-md transition-all hover:bg-[#1EBE5D] active:scale-[0.98]"
+            >
+              <MessageSquare className="h-5 w-5 fill-white" />
+              <span>Confirm on WhatsApp (1-Tap)</span>
+            </a>
+
+            <a
+              href={DIRECT_PHONE_TEL}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#D0DDD8] bg-white py-3 text-xs font-bold text-[#123B46] hover:bg-[#F8FAF9] transition-all"
+            >
+              <Phone className="h-4 w-4 text-[#197A73]" />
+              <span>Direct Call: {DIRECT_PHONE}</span>
+            </a>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-[#E3EAE7]">
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentStep(1);
+                setSubmittedBooking(null);
+              }}
+              className="text-xs font-bold text-[#123B46] underline hover:text-[#197A73]"
+            >
+              Book Another Service →
+            </button>
           </div>
         </div>
-      </form>
-
-      {/* Right Column: Dynamic Live Scope Summary */}
-      <div className="lg:col-span-5 lg:sticky lg:top-24">
-        <BookingSummary
-          formData={formData}
-          onRemoveService={(slug) => toggleService(slug)}
-          onRemoveAddOn={(slug) => toggleAddOn(slug)}
-        />
-      </div>
+      )}
     </div>
   );
 }

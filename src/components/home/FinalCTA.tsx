@@ -4,7 +4,9 @@ import { CalendarCheck, MessageSquare } from "lucide-react";
 import { buildGeneralWhatsAppMessage, getWhatsAppUrl } from "@/lib/whatsapp";
 
 export function FinalCTA() {
-  const whatsappUrl = getWhatsAppUrl(buildGeneralWhatsAppMessage());
+  const whatsappUrl =
+    "https://wa.me/917995770546?text=Hi%20AquaShine%21%20I%20want%20to%20book%20a%20cleaning%20service.%0AService%3A%20%0AArea%20%2F%20Pincode%3A%20%0APreferred%20date%3A%20%0AProperty%20type%3A%20Home%20%2F%20Society%20%2F%20Office";
+  const phoneTel = "tel:+917995770546";
 
   return (
     <section className="defer-below-fold bg-[#E6F2EE] py-16 sm:py-20">
@@ -31,25 +33,22 @@ export function FinalCTA() {
               <span>Book a Service</span>
             </Link>
 
-            {whatsappUrl ? (
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2.5 rounded-xl border border-white/25 bg-white/10 px-7 py-3.5 text-base font-semibold text-white transition-colors hover:bg-white/20 sm:w-auto"
-              >
-                <MessageSquare aria-hidden="true" className="h-5 w-5 text-[#25AFA5]" />
-                <span>Contact on WhatsApp</span>
-              </a>
-            ) : (
-              <Link
-                href="/contact?channel=WhatsApp#booking-form"
-                className="inline-flex w-full items-center justify-center gap-2.5 rounded-xl border border-white/25 bg-white/10 px-7 py-3.5 text-base font-semibold text-white transition-colors hover:bg-white/20 sm:w-auto"
-              >
-                <MessageSquare aria-hidden="true" className="h-5 w-5 text-[#25AFA5]" />
-                <span>Contact on WhatsApp</span>
-              </Link>
-            )}
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2.5 rounded-xl border border-white/25 bg-white/10 px-7 py-3.5 text-base font-semibold text-white transition-colors hover:bg-white/20 sm:w-auto"
+            >
+              <MessageSquare aria-hidden="true" className="h-5 w-5 text-[#25AFA5]" />
+              <span>WhatsApp Booking</span>
+            </a>
+
+            <a
+              href={phoneTel}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/20 sm:w-auto"
+            >
+              <span>Call +91 79957 70546</span>
+            </a>
           </div>
 
           <p className="mt-5 text-xs text-[#E6F2EE]/75">

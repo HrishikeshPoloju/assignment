@@ -108,6 +108,10 @@ export async function GET(request: NextRequest) {
           ? settings.googleSheetWebhookUrl.slice(0, 38) + "..."
           : null,
       },
+      database: {
+        type: process.env.DATABASE_URL ? "Neon Serverless Postgres" : "Local File Storage (Fallback)",
+        connected: Boolean(process.env.DATABASE_URL),
+      },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

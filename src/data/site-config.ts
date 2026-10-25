@@ -73,8 +73,8 @@ export const siteConfig: SiteConfig = {
   country: "India",
   contact: {
     // Configurable WhatsApp & phone contact. Set your verified number (digits only, with 91 prefix) here:
-    whatsappNumber: process.env.NEXT_PUBLIC_AQUASHINE_WHATSAPP || "",
-    phoneDisplay: process.env.NEXT_PUBLIC_AQUASHINE_PHONE || "",
+    whatsappNumber: process.env.NEXT_PUBLIC_AQUASHINE_WHATSAPP || "917995770546",
+    phoneDisplay: process.env.NEXT_PUBLIC_AQUASHINE_PHONE || "+91 79957 70546",
     email: process.env.NEXT_PUBLIC_AQUASHINE_EMAIL || "",
     workingHours: "Monday – Sunday, 8:30 AM – 7:30 PM IST (By prior appointment)",
     baseLocationLabel: "Viman Nagar, Pune, Maharashtra, India",

@@ -27,11 +27,10 @@ const SCALLOP_PATH =
   "L1200,8 L1200,0 Z";
 
 export function Hero() {
-  const whatsappUrl = siteConfig.contact.whatsappNumber
-    ? `https://wa.me/${siteConfig.contact.whatsappNumber}?text=${encodeURIComponent(
-        "Hi AquaShine, I would like to enquire about home cleaning and tank care services in Pune."
-      )}`
-    : "/contact#booking-form";
+  const whatsappUrl =
+    "https://wa.me/917995770546?text=Hi%20AquaShine%21%20I%20want%20to%20book%20a%20cleaning%20service.%0AService%3A%20%0AArea%20%2F%20Pincode%3A%20%0APreferred%20date%3A%20%0AProperty%20type%3A%20Home%20%2F%20Society%20%2F%20Office";
+  const phoneTel = "tel:+917995770546";
+  const phoneDisplay = "+91 79957 70546";
 
   return (
     <section className="relative overflow-hidden bg-[#0D2C35] text-white">
@@ -72,21 +71,33 @@ export function Hero() {
               </div>
             </Link>
 
-            {/* Top Right Quick Actions */}
-            <div className="flex items-center gap-2">
+            {/* Top Right Quick Actions: Direct Call & WhatsApp */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <a
+                href={phoneTel}
+                aria-label="Direct Phone Call: +91 79957 70546"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md border border-white/25 active:scale-95 transition-transform"
+                title="Call +91 79957 70546"
+              >
+                <Phone className="h-4 w-4 text-white" />
+              </a>
+
               <a
                 href={whatsappUrl}
-                target={siteConfig.contact.whatsappNumber ? "_blank" : undefined}
+                target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Chat on WhatsApp"
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#25D366] text-white shadow-md active:scale-95 transition-transform"
+                title="WhatsApp Us"
               >
                 <MessageCircle className="h-4 w-4 fill-white text-[#25D366]" />
               </a>
+
               <Link
                 href="/contact#booking-form"
                 aria-label="Direct booking"
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md border border-white/25 active:scale-95 transition-transform"
+                title="Book a slot"
               >
                 <Calendar className="h-4 w-4 text-white" />
               </Link>
@@ -190,6 +201,27 @@ export function Hero() {
                 Pune&apos;s trusted crew for mechanized overhead tank sanitization,
                 deep upholstery extraction, bathroom descaling, and full home care.
               </p>
+
+              {/* Direct Quick Contact Buttons */}
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-4.5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#1EBE5D] transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4 fill-white" />
+                  <span>Instant WhatsApp Booking</span>
+                </a>
+
+                <a
+                  href={phoneTel}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4.5 py-2.5 text-xs font-bold text-white hover:bg-white/20 transition-colors backdrop-blur-md"
+                >
+                  <Phone className="h-3.5 w-3.5 text-[#25AFA5]" />
+                  <span>Call Us: {phoneDisplay}</span>
+                </a>
+              </div>
 
               {/* Action Cards Grid on Desktop */}
               <div className="mt-8 grid max-w-xl grid-cols-2 gap-4">
